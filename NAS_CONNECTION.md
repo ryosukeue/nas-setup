@@ -37,4 +37,14 @@ ssh -i ~/.ssh/nas_ed25519 ryo@192.168.10.125
 
 ### Tailscale
 
-Tailscaleはインストール済みです。ログインが完了すると、Tailscaleネットワークからこのサーバーに接続できます。
+Tailscaleへ参加済みです。
+
+- デバイス名: `nas`
+- Tailscale IP: `100.116.147.112`
+- Tailscale SSH: 有効
+
+外部ネットワークからは、Tailscaleにログイン済みの端末で次のように接続できます。
+
+```sh
+ssh ryo@100.116.147.112
+```
