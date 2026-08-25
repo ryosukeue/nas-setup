@@ -1,0 +1,77 @@
+@import "tailwindcss";
+
+:root {
+  --ink: #15231d;
+  --muted: #627069;
+  --paper: #f3f1e9;
+  --card: #fffef9;
+  --line: #dcded5;
+  --green: #176b4a;
+  --green-soft: #dfeee5;
+  --orange: #e66a36;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: radial-gradient(circle at 82% 0%, rgba(214, 232, 218, .78), transparent 34rem), var(--paper);
+  color: var(--ink);
+  font-family: Inter, "Noto Sans JP", "Yu Gothic UI", "Hiragino Sans", sans-serif;
+}
+
+button, input { font: inherit; }
+.shell { width: min(1120px, calc(100% - 40px)); margin: 0 auto; min-height: 100vh; }
+.topbar { height: 88px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(21, 35, 29, .14); }
+.brand { display: flex; gap: 12px; align-items: center; }
+.brandMark { width: 42px; height: 42px; display: grid; place-items: center; background: var(--ink); color: white; border-radius: 13px; font-weight: 800; font-size: 20px; }
+.brand div { display: grid; gap: 2px; }
+.brand strong { letter-spacing: .08em; }
+.brand span { color: var(--muted); font-size: 12px; }
+.connection { display: flex; align-items: center; gap: 8px; color: var(--green); font-size: 13px; font-weight: 700; }
+.connection i { width: 8px; height: 8px; background: #35a46c; border-radius: 50%; box-shadow: 0 0 0 5px rgba(53,164,108,.12); }
+.hero { padding: 76px 0 62px; max-width: 800px; }
+.eyebrow { color: var(--orange); font: 800 12px/1 monospace; letter-spacing: .2em; margin-bottom: 22px; }
+.hero h1 { font-size: clamp(44px, 6vw, 72px); line-height: 1.08; letter-spacing: -.055em; margin: 0; }
+.hero p { max-width: 620px; margin: 26px 0 32px; color: var(--muted); line-height: 1.85; font-size: 15px; }
+.primary { border: 0; border-radius: 12px; background: var(--green); color: white; padding: 16px 20px; font-weight: 750; cursor: pointer; display: inline-flex; align-items: center; gap: 26px; box-shadow: 0 10px 26px rgba(23,107,74,.2); }
+.primary span { font-size: 19px; }
+.statusPanel { display: grid; grid-template-columns: 1.45fr repeat(3, 1fr); border: 1px solid var(--line); background: rgba(255,254,249,.78); border-radius: 18px; box-shadow: 0 12px 38px rgba(31,45,38,.06); overflow: hidden; }
+.statusLead, .metric { padding: 24px 26px; min-height: 112px; }
+.statusLead { display: flex; align-items: center; gap: 15px; }
+.statusIcon { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 50%; background: var(--green-soft); color: var(--green); font-weight: 900; }
+.statusLead div, .metric { display: grid; align-content: center; gap: 5px; }
+.statusLead strong { font-size: 16px; }
+.statusLead small, .metric small { color: var(--muted); font-size: 12px; }
+.metric { border-left: 1px solid var(--line); }
+.metric span { color: var(--muted); font-size: 11px; font-weight: 750; letter-spacing: .08em; }
+.metric strong { font-size: 19px; }
+.stepsSection { padding: 64px 0; }
+.sectionTitle { display: flex; justify-content: space-between; align-items: end; margin-bottom: 18px; }
+.sectionTitle span { font-size: 13px; font-weight: 800; letter-spacing: .1em; }
+.sectionTitle small { color: var(--muted); }
+.stepsGrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.stepCard { min-height: 154px; padding: 20px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255,254,249,.5); }
+.stepNumber { color: var(--orange); font: 700 12px monospace; }
+.stepCard h2 { margin: 34px 0 6px; font-size: 18px; }
+.stepCard p { margin: 0; color: var(--muted); font-size: 12px; }
+footer { text-align: center; color: var(--muted); border-top: 1px solid var(--line); padding: 26px 0 36px; font-size: 12px; }
+footer b { color: var(--ink); }
+
+@media (max-width: 820px) {
+  .statusPanel { grid-template-columns: 1fr 1fr; }
+  .metric { border-top: 1px solid var(--line); }
+  .metric:nth-child(2) { border-left: 0; }
+  .stepsGrid { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 560px) {
+  .shell { width: min(100% - 28px, 1120px); }
+  .topbar { height: 74px; }
+  .connection { font-size: 0; }
+  .hero { padding: 54px 0 44px; }
+  .hero h1 { font-size: 42px; }
+  .hero p { font-size: 14px; }
+  .statusPanel, .stepsGrid { grid-template-columns: 1fr; }
+  .metric { border-left: 0; border-top: 1px solid var(--line); }
+}
