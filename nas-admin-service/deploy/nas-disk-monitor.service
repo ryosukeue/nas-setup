@@ -1,0 +1,10 @@
+[Unit]
+Description=Photo NAS physical disk and RAID health check
+After=local-fs.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+WorkingDirectory=/opt/nas-admin-service
+ExecStart=/opt/nas-admin-service/disk_monitor.py
