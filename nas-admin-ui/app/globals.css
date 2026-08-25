@@ -109,6 +109,10 @@ code { display: inline-block; color: inherit; overflow-wrap: anywhere; }
 .qrRow a, .authLink { color: var(--green); font-weight: 800; font-size: 12px; }
 .noticeLinks { display: flex; flex-wrap: wrap; gap: 12px 18px; }
 .inlineMessage { margin-top: 12px; color: var(--green); font-size: 12px; font-weight: 700; }
+.handoffBox { margin-top: 16px; padding: 14px; border: 1px solid #e0b978; border-radius: 12px; background: #fff8e8; }
+.handoffBox strong, .handoffBox p { display: block; margin: 0 0 7px; font-size: 12px; }
+.handoffBox button { border: 0; border-radius: 8px; padding: 9px 12px; color: white; background: #9b5b16; font-weight: 800; cursor: pointer; }
+.handoffDone { margin-top: 16px; padding: 12px; border-radius: 10px; color: var(--green); background: var(--green-soft); font-size: 12px; font-weight: 800; }
 .authLink { display: block; margin-top: 15px; overflow-wrap: anywhere; }
 .supportPanel { margin-bottom: 14px; }
 .empty { padding: 26px 0 8px; color: var(--muted); font-size: 13px; }

@@ -32,7 +32,7 @@
                          ├─ Tailscale
                          └─ mdadm RAID1 + Btrfs
                                 ▲
-                                │ Tailscale SSH（保守専用・制限付き）
+                                │ Tailscale + OpenSSH（保守専用・制限付き）
                            販売者のPC
 ```
 
@@ -114,8 +114,8 @@ ImmichのAPI変更に備え、対応バージョンを固定し、アップデ�
 - 友人のスマホとPCにもTailscaleを入れ、外出先からImmichへ接続できるようにする。
 - NASに `tag:nas` を付け、アクセス制御で利用者と保守者を分離する。
 - 友人はImmichと必要なNASサービスへアクセス可能にする。
-- 販売者はTailscale SSHの保守専用ユーザー `support` にだけ接続可能にし、ImmichとSMBのポートは許可しない。
-- SSHは再認証を要求するcheckモードを使い、アクセスルールにテストも追加する。
+- 販売者はTailscale経由のOpenSSHで保守専用ユーザー `support` にだけ接続し、公開鍵で認証する。
+- 所有者Tailnetへの再登録後、所有者が「引き渡しを完了する」を押すと、構築用 `ryo` のSSH鍵、パスワード、sudo、ログインシェルを停止する。
 
 ## 写真を販売者から見えなくする方法
 

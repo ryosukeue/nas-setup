@@ -11,6 +11,8 @@ type Status = {
   share?: string;
   ntfyConfigured?: boolean;
   tailscale?: boolean;
+  handoffReady?: boolean;
+  handoffComplete?: boolean;
   disk: {
     raid: { healthy: boolean; active: number; expected: number; members: string };
     disks: Disk[];
@@ -177,6 +179,16 @@ function Dashboard({ status, refresh }: { status: Status; refresh: () => void })
     const result = await api<{ authUrl?: string }>("/api/tailscale/start", { method: "POST" });
     if (result.authUrl) setTailscaleUrl(result.authUrl);
   }
+  async function completeHandoff() {
+    if (!window.confirm("構築用ryoログインを永久に停止します。今後の保守は、あなたが許可した固定操作だけになります。続けますか？")) return;
+    try {
+      await api("/api/handoff/complete", { method: "POST", body: JSON.stringify({ confirm: true }) });
+      setMessage("引き渡しが完了しました。構築用ログインは停止されました。");
+      window.setTimeout(refresh, 1200);
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : "引き渡しを完了できませんでした");
+    }
+  }
   const immichUrl = `${window.location.protocol}//${window.location.hostname}:2283`;
   const health = status.disk.raid.healthy && status.disk.disks.every((disk) => disk.present && disk.smartPassed !== false);
 
@@ -201,7 +213,7 @@ function Dashboard({ status, refresh }: { status: Status; refresh: () => void })
         <article className="panel"><div className="panelHead"><div><span className="cardKicker">ANDROID NOTIFICATION</span><h2>ntfyをスマホへ登録</h2></div></div>
           <div className="qrRow"><img src="/api/notifications/qr.png" alt="ntfy通知登録用QRコード" /><div><ol><li>スマホにntfyをインストール</li><li>このQRコードを読み取る</li><li>下のボタンで通知を確認</li></ol>{notice && <div className="noticeLinks"><a href={notice.subscribeUrl}>スマホのntfyで開く</a><a href={notice.webUrl} target="_blank" rel="noreferrer">PCブラウザで通知を見る</a></div>}{message && <div className="inlineMessage">{message}</div>}</div></div>
         </article>
-        <article className="panel"><div className="panelHead"><div><span className="cardKicker">REMOTE ACCESS</span><h2>Tailscale</h2></div></div><p>引き渡し時に、所有者本人のTailscaleへNASを登録します。</p><button className="cardButton secondary" onClick={connectTailscale}>所有者のTailscaleへ接続</button>{tailscaleUrl && <a className="authLink" href={tailscaleUrl} target="_blank" rel="noreferrer">Tailscaleの認証を開く →</a>}</article>
+        <article className="panel"><div className="panelHead"><div><span className="cardKicker">REMOTE ACCESS</span><h2>Tailscale</h2></div></div><p>引き渡し時に、所有者本人のTailscaleへNASを登録します。</p><button className="cardButton secondary" onClick={connectTailscale}>所有者のTailscaleへ接続</button>{tailscaleUrl && <a className="authLink" href={tailscaleUrl} target="_blank" rel="noreferrer">Tailscaleの認証を開く →</a>}{status.handoffReady && !status.handoffComplete && <div className="handoffBox"><strong>所有者の接続後に実行</strong><p>構築用ログインを停止し、写真へ入れない保守経路だけ残します。</p><button onClick={completeHandoff}>引き渡しを完了する</button></div>}{status.handoffComplete && <div className="handoffDone">✓ 引き渡し済み・構築用ログイン停止</div>}</article>
       </section>
 
       <section id="support" className="panel supportPanel"><div className="panelHead"><div><span className="cardKicker">SUPPORT ACCESS</span><h2>保守権限の申請</h2></div><span>許可は1時間</span></div>

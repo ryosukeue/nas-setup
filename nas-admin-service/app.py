@@ -261,6 +261,8 @@ def status():
             "share": f"\\\\{os.uname().nodename}.local\\Photos",
             "ntfyConfigured": bool(setting("ntfy_topic")),
             "tailscale": service_active("tailscaled"),
+            "handoffReady": bool(setting("tailscale_reenroll_started", False)),
+            "handoffComplete": bool(setting("handoff_complete", False)),
         })
     return jsonify(result)
 
@@ -402,11 +404,52 @@ def audit_log():
 @owner_required
 def tailscale_start():
     run(["tailscale", "logout"], check=False)
-    result = run(["tailscale", "up", "--ssh", "--hostname", "nas", "--timeout=15s"], check=False, timeout=25)
+    set_setting("tailscale_reenroll_started", True)
+    result = run(
+        ["tailscale", "up", "--ssh=false", "--hostname", "nas", "--timeout=15s"],
+        check=False,
+        timeout=25,
+    )
     output = result.stdout + "\n" + result.stderr
     match = re.search(r"https://login\.tailscale\.com/\S+", output)
     audit("owner", "tailscale.reenroll")
     return jsonify({"ok": result.returncode == 0, "authUrl": match.group(0) if match else None})
+
+
+@app.post("/api/handoff/complete")
+@owner_required
+def handoff_complete():
+    data = request.get_json(silent=True) or {}
+    if data.get("confirm") is not True:
+        return jsonify({"error": "引き渡し確認が必要です"}), 400
+    if setting("handoff_complete", False):
+        return jsonify({"ok": True})
+    if not setting("tailscale_reenroll_started", False):
+        return jsonify({"error": "先に所有者のTailscaleへ接続してください"}), 409
+    status_result = run(["tailscale", "status", "--json"], check=False)
+    try:
+        backend_state = json.loads(status_result.stdout).get("BackendState")
+    except json.JSONDecodeError:
+        backend_state = None
+    if backend_state != "Running":
+        return jsonify({"error": "Tailscaleの接続完了を確認できません"}), 409
+
+    authorized_keys = Path("/home/ryo/.ssh/authorized_keys")
+    if authorized_keys.exists():
+        authorized_keys.unlink()
+    run(["gpasswd", "--delete", "ryo", "sudo"], check=False)
+    run(["passwd", "--lock", "ryo"], check=False)
+    run(["usermod", "--shell", "/usr/sbin/nologin", "ryo"], check=False)
+    set_setting("handoff_complete", True)
+    audit("owner", "handoff.complete", "builder login disabled; support broker remains")
+    run(
+        [
+            "systemd-run", "--unit", "nas-end-builder-session", "--on-active=10s",
+            "/usr/bin/loginctl", "terminate-user", "ryo",
+        ],
+        check=False,
+    )
+    return jsonify({"ok": True})
 
 
 @app.get("/healthz")
