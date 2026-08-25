@@ -21,4 +21,4 @@ Ubuntu Serverを、CLI不要で使える写真NASとして引き渡すための�
 - 1時間ごとのRAID/物理HDD/SMART総合判定
 - アカウント不要のntfy通知
 
-秘密情報と利用者データはGitHubへ保存しません。実機の状態は `IMPLEMENTATION_STATUS.md`、接続履歴は `NAS_CONNECTION.md`、設計判断は `NAS_PRODUCT_DESIGN.md` に記録します。
+秘密情報と利用者データはGitHubへ保存しません。全体構成は `ARCHITECTURE.md`、実機の状態は `IMPLEMENTATION_STATUS.md`、接続履歴は `NAS_CONNECTION.md`、設計判断は `NAS_PRODUCT_DESIGN.md` に記録します。
