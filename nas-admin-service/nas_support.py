@@ -11,7 +11,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="写真NASの保守権限を申請します")
     parser.add_argument("reason", nargs="*", help="作業内容")
     args = parser.parse_args()
-    reason = " ".join(args.reason).strip() or "NASの点検・保守"
+    reason_parts = args.reason[1:] if args.reason[:1] == ["request"] else args.reason
+    reason = " ".join(reason_parts).strip() or "NASの点検・保守"
     request_id = secrets.token_urlsafe(12)
     with db() as connection:
         connection.execute(

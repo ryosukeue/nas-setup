@@ -1,52 +1,48 @@
-# Ubuntu Server 接続記録
+# Ubuntu Server 接続・導入記録
+
+更新日: 2026-08-25
 
 ## 検出結果
 
-- Ubuntu Server: `192.168.10.125`
-- SSH: TCP 22番ポートで応答
-- SSHバナー: `OpenSSH_10.2p1 Ubuntu-2ubuntu3.5`
-
-`192.168.10.116` はTP-Link機器であり、Ubuntu Serverではないことを確認。
-
-## ログイン状況
-
-- ユーザー: `ryo`
+- Ubuntu Server: `192.168.10.125`（設置時LAN。DHCPのため引き渡し先では変わる）
 - ホスト名: `nas`
-- このMacの公開鍵を登録済み
-- パスワード不要のSSHログインを確認済み
+- LAN用URL: `http://nas.local`
+- Tailscale IP: `100.116.147.112`（販売者Tailnet上の仮登録）
 
-接続コマンド:
+`192.168.10.116` はTP-Link機器であり、Ubuntu Serverではないことを確認した。
 
-```sh
-ssh -i ~/.ssh/nas_ed25519 ryo@192.168.10.125
-```
+## 実機へ導入済み
 
-## 導入済みサービス
-
-- OS更新: 2026-08-24 に適用済み
+- OS更新: 2026-08-24適用
 - Docker Engine: 29.7.2
-- Tailscale: 1.102.3（初回ログイン待ち）
-- Immich: v3.1.0
+- Immich: v3.1.0、`http://nas.local:2283`
+- Tailscale: 1.102.3
+- nginx + 写真NAS管理API: `http://nas.local`
+- Samba/SMB: `\\nas.local\Photos`
+- Avahi/mDNS: `nas.local`
+- WS-Discovery: Windowsネットワーク検出
+- mdadm RAID1: `/dev/md0`、2/2台、`[UU]`
+- 物理HDD/RAID監視: 起動時と1時間ごと
 
-### Immich
+## 保存先
 
-- Web画面: `http://192.168.10.125:2283`
-- アップロードデータ: `/srv/immich/library`
-- データベース: `/srv/immich/postgres`
-- 設定ファイル: `/opt/immich/.env`（秘密情報を含むためGitHubには保存しない）
+- Immichアップロード: `/srv/immich/library`
+- Immichデータベース: `/srv/immich/postgres`
+- Windows PC写真: `/srv/photos/pc`
+- 管理サービス: `/opt/nas-admin-service`
+- 管理画面: `/opt/nas-admin-ui-static`
+- 利用者設定・秘密情報: `/var/lib/nas-admin/state.db`
 
-### Tailscale
+## 遠隔保守
 
-Tailscaleへ参加済みです。
-
-- デバイス名: `nas`
-- Tailscale IP: `100.116.147.112`
-- Tailscale SSH: 有効
-
-外部ネットワークからは、Tailscaleにログイン済みの端末で次のように接続できます。
+引き渡し時、所有者が管理画面から自分のTailnetへNASを再登録する。販売者は写真グループに属さない `support` アカウントだけを利用する。
 
 ```sh
-ssh -i ~/.ssh/nas_ed25519 ryo@100.116.147.112
+ssh -i ~/.ssh/nas_ed25519 support@NASのTailscale名またはIP
+nas-support request "Immichの点検"
+nas-maint status
 ```
 
-2026-08-24に、Tailscale経由のSSH接続を確認済みです。
+`nas-maint` は、所有者が管理画面で申請を1時間許可した間だけ動く。任意のrootシェルではなく、状態確認、主要サービス再起動、ディスク確認の固定操作に限定する。
+
+販売者Tailnet上のIPと初期構築用 `ryo` SSH経路は引き渡し前の仮経路であり、所有者によるTailscale再登録後は無効になる。

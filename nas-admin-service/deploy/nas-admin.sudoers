@@ -1,1 +1,1 @@
-support ALL=(root) NOPASSWD: /usr/local/bin/nas-support, /usr/local/bin/nas-maint
+support ALL=(root) NOPASSWD: /opt/nas-admin-service/nas_support.py, /opt/nas-admin-service/maintenance.py

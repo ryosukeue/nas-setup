@@ -1,0 +1,2 @@
+#!/bin/sh
+exec /usr/bin/sudo /opt/nas-admin-service/maintenance.py "$@"

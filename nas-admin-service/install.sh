@@ -36,8 +36,8 @@ fi
 install -d -o support -g support -m 0700 /home/support/.ssh
 install -o support -g support -m 0600 "$source_dir/deploy/support_authorized_keys" /home/support/.ssh/authorized_keys
 
-ln -sfn /opt/nas-admin-service/nas_support.py /usr/local/bin/nas-support
-ln -sfn /opt/nas-admin-service/maintenance.py /usr/local/bin/nas-maint
+install -m 0755 "$source_dir/deploy/nas-support.wrapper" /usr/local/bin/nas-support
+install -m 0755 "$source_dir/deploy/nas-maint.wrapper" /usr/local/bin/nas-maint
 install -m 0440 "$source_dir/deploy/nas-admin.sudoers" /etc/sudoers.d/nas-admin
 
 install -m 0644 "$source_dir/deploy/nas-admin.service" /etc/systemd/system/nas-admin.service

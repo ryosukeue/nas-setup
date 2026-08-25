@@ -325,7 +325,10 @@ def logout():
 @owner_required
 def notifications():
     topic = setting("ntfy_topic")
-    return jsonify({"subscribeUrl": f"ntfy://ntfy.sh/{topic}?display=Photo+NAS"})
+    return jsonify({
+        "subscribeUrl": f"ntfy://ntfy.sh/{topic}?display=Photo+NAS",
+        "webUrl": f"https://ntfy.sh/{topic}",
+    })
 
 
 @app.get("/api/notifications/qr.png")

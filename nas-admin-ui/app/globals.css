@@ -58,11 +58,81 @@ button, input { font: inherit; }
 footer { text-align: center; color: var(--muted); border-top: 1px solid var(--line); padding: 26px 0 36px; font-size: 12px; }
 footer b { color: var(--ink); }
 
+.centerState { min-height: 72vh; display: grid; place-items: center; align-content: center; gap: 18px; color: var(--muted); }
+.spinner { width: 34px; height: 34px; border: 3px solid var(--line); border-top-color: var(--green); border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.offline i { background: #a5aaa7; box-shadow: none; }
+.authWrap { min-height: 76vh; display: grid; place-items: center; }
+.formCard { width: min(620px, calc(100% - 28px)); position: relative; border-radius: 22px; padding: 34px; background: var(--card); border: 1px solid var(--line); box-shadow: 0 30px 90px rgba(21,35,29,.18); }
+.formCard.compact { max-width: 460px; }
+.formCard h1, .formCard h2 { margin: 0 0 10px; letter-spacing: -.03em; }
+.formCard h1 { font-size: 34px; }
+.formCard h2 { font-size: 29px; }
+.formCard > p { color: var(--muted); line-height: 1.7; margin: 0 0 24px; }
+.formGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.formGrid .wide { grid-column: 1 / -1; }
+label { display: grid; gap: 8px; font-size: 12px; font-weight: 750; }
+input { width: 100%; border: 1px solid #cfd4cc; border-radius: 10px; padding: 13px 14px; background: white; color: var(--ink); outline: none; }
+input:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(23,107,74,.1); }
+.full { width: 100%; justify-content: center; margin-top: 20px; }
+.primary:disabled { opacity: .58; cursor: wait; }
+.modalBackdrop { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 20px; background: rgba(18,30,24,.64); backdrop-filter: blur(7px); }
+.close { position: absolute; right: 18px; top: 16px; width: 34px; height: 34px; border: 0; border-radius: 50%; background: #eef0eb; color: var(--muted); font-size: 23px; cursor: pointer; }
+.noteBox, .errorBox { margin-top: 18px; border-radius: 10px; padding: 12px 14px; font-size: 12px; line-height: 1.6; }
+.noteBox { background: #eef4ef; color: #345443; }
+.errorBox { background: #fde8e2; color: #9e351d; }
+
+.dashboardHero { display: flex; align-items: center; justify-content: space-between; padding: 60px 0 34px; }
+.dashboardHero h1 { margin: 0; font-size: clamp(34px, 5vw, 56px); letter-spacing: -.05em; }
+.dashboardHero p { color: var(--muted); margin: 12px 0 0; }
+.healthBadge { border-radius: 999px; padding: 11px 16px; color: var(--green); background: var(--green-soft); font-weight: 800; font-size: 13px; }
+.healthBadge.danger { color: #a23624; background: #f9ddd6; }
+.dashboardStatus { grid-template-columns: 1.4fr repeat(3, 1fr); }
+.actionGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; padding: 30px 0 14px; }
+.actionCard, .panel { border: 1px solid var(--line); border-radius: 16px; background: rgba(255,254,249,.72); }
+.actionCard { padding: 24px; display: flex; flex-direction: column; min-height: 246px; }
+.actionCard.accent { background: var(--ink); color: white; border-color: var(--ink); }
+.cardKicker { color: var(--orange); font: 800 10px monospace; letter-spacing: .15em; }
+.actionCard h2, .panel h2 { margin: 14px 0 10px; letter-spacing: -.025em; }
+.actionCard p, .panel > p { color: var(--muted); font-size: 13px; line-height: 1.7; }
+.actionCard.accent p { color: #bfc9c3; }
+code { display: inline-block; color: inherit; overflow-wrap: anywhere; }
+.cardButton { margin-top: auto; display: inline-flex; justify-content: center; align-items: center; min-height: 42px; border: 0; border-radius: 10px; padding: 10px 13px; background: var(--orange); color: white; text-decoration: none; font-weight: 800; font-size: 12px; cursor: pointer; }
+.cardButton.secondary { background: var(--green-soft); color: var(--green); }
+.splitSection { display: grid; grid-template-columns: 1.35fr 1fr; gap: 14px; padding: 0 0 14px; }
+.panel { padding: 24px; }
+.panelHead { display: flex; justify-content: space-between; align-items: start; }
+.panelHead > span { color: var(--muted); font-size: 11px; }
+.qrRow { display: grid; grid-template-columns: 160px 1fr; gap: 24px; align-items: center; }
+.qrRow img { width: 160px; height: 160px; border-radius: 12px; border: 8px solid white; background: white; }
+.qrRow ol { color: var(--muted); padding-left: 20px; font-size: 12px; line-height: 2; }
+.qrRow a, .authLink { color: var(--green); font-weight: 800; font-size: 12px; }
+.noticeLinks { display: flex; flex-wrap: wrap; gap: 12px 18px; }
+.inlineMessage { margin-top: 12px; color: var(--green); font-size: 12px; font-weight: 700; }
+.authLink { display: block; margin-top: 15px; overflow-wrap: anywhere; }
+.supportPanel { margin-bottom: 14px; }
+.empty { padding: 26px 0 8px; color: var(--muted); font-size: 13px; }
+.requestRow { display: grid; grid-template-columns: 1fr auto auto; gap: 16px; align-items: center; padding: 16px 0; border-top: 1px solid var(--line); }
+.requestRow > div:first-child { display: grid; gap: 5px; }
+.requestRow small { color: var(--muted); }
+.requestStatus { font-size: 11px; font-weight: 800; padding: 6px 9px; border-radius: 99px; }
+.requestStatus.pending { background: #fff0d6; color: #94611e; }
+.requestStatus.approved { background: var(--green-soft); color: var(--green); }
+.requestStatus.denied { background: #ececea; color: #6b6b68; }
+.requestActions { display: flex; gap: 7px; }
+.requestActions button, .dashboardFoot button { border: 1px solid var(--line); background: white; border-radius: 8px; padding: 8px 11px; cursor: pointer; color: var(--ink); }
+.requestActions .approve { background: var(--green); color: white; border-color: var(--green); }
+.dashboardFoot { display: flex; justify-content: flex-end; gap: 8px; padding: 4px 0 44px; }
+
 @media (max-width: 820px) {
   .statusPanel { grid-template-columns: 1fr 1fr; }
   .metric { border-top: 1px solid var(--line); }
   .metric:nth-child(2) { border-left: 0; }
   .stepsGrid { grid-template-columns: 1fr 1fr; }
+  .dashboardStatus { grid-template-columns: 1fr 1fr; }
+  .actionGrid { grid-template-columns: 1fr; }
+  .actionCard { min-height: 210px; }
+  .splitSection { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 560px) {
@@ -74,4 +144,12 @@ footer b { color: var(--ink); }
   .hero p { font-size: 14px; }
   .statusPanel, .stepsGrid { grid-template-columns: 1fr; }
   .metric { border-left: 0; border-top: 1px solid var(--line); }
+  .formGrid { grid-template-columns: 1fr; }
+  .formGrid .wide { grid-column: auto; }
+  .dashboardHero { align-items: flex-start; gap: 20px; }
+  .healthBadge { white-space: nowrap; }
+  .dashboardStatus { grid-template-columns: 1fr; }
+  .qrRow { grid-template-columns: 1fr; }
+  .requestRow { grid-template-columns: 1fr auto; }
+  .requestActions { grid-column: 1 / -1; }
 }
