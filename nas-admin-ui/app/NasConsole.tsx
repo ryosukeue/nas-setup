@@ -11,6 +11,11 @@ type Status = {
   share?: string;
   ntfyConfigured?: boolean;
   tailscale?: boolean;
+  tailscaleState?: string;
+  tailscaleDnsName?: string;
+  immichExternalUrl?: string;
+  adminExternalUrl?: string;
+  tailscaleExternalReady?: boolean;
   handoffReady?: boolean;
   handoffComplete?: boolean;
   disk: {
@@ -163,6 +168,7 @@ function Dashboard({ status, refresh }: { status: Status; refresh: () => void })
   const [requests, setRequests] = useState<SupportRequest[]>([]);
   const [notice, setNotice] = useState<{ subscribeUrl: string; webUrl: string } | null>(null);
   const [tailscaleUrl, setTailscaleUrl] = useState("");
+  const [tailscaleConsentUrl, setTailscaleConsentUrl] = useState("");
   const [showSmbPassword, setShowSmbPassword] = useState(false);
   const [newSmbPassword, setNewSmbPassword] = useState("");
   const load = useCallback(async () => {
@@ -177,6 +183,11 @@ function Dashboard({ status, refresh }: { status: Status; refresh: () => void })
     const timer = window.setTimeout(load, 0);
     return () => window.clearTimeout(timer);
   }, [load]);
+  useEffect(() => {
+    if (!tailscaleUrl || status.tailscaleState === "Running") return;
+    const timer = window.setInterval(refresh, 3000);
+    return () => window.clearInterval(timer);
+  }, [refresh, status.tailscaleState, tailscaleUrl]);
 
   async function testNotification() {
     setMessage("通知を送っています…");
@@ -201,6 +212,22 @@ function Dashboard({ status, refresh }: { status: Status; refresh: () => void })
     const result = await api<{ authUrl?: string }>("/api/tailscale/start", { method: "POST" });
     if (result.authUrl) setTailscaleUrl(result.authUrl);
   }
+  async function configureTailscale() {
+    setMessage("外出先アクセスを設定しています…");
+    try {
+      const result = await api<{ ok: boolean; consentUrl?: string; error?: string }>("/api/tailscale/configure", { method: "POST" });
+      if (result.consentUrl) {
+        setTailscaleConsentUrl(result.consentUrl);
+        setMessage("Tailscale側でHTTPSを許可し、その後もう一度設定してください。");
+      } else if (result.ok) {
+        setTailscaleConsentUrl(""); setMessage("外出先からImmichを開けるようになりました。"); refresh();
+      } else {
+        setMessage(result.error || "外出先アクセスを設定できませんでした");
+      }
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : "外出先アクセスを設定できませんでした");
+    }
+  }
   async function completeHandoff() {
     if (!window.confirm("構築用ryoログインを永久に停止します。今後の保守は、あなたが許可した固定操作だけになります。続けますか？")) return;
     try {
@@ -211,7 +238,8 @@ function Dashboard({ status, refresh }: { status: Status; refresh: () => void })
       setMessage(reason instanceof Error ? reason.message : "引き渡しを完了できませんでした");
     }
   }
-  const immichUrl = `${window.location.protocol}//${window.location.hostname}:2283`;
+  const immichLanUrl = `${window.location.protocol}//${window.location.hostname}:2283`;
+  const immichUrl = status.immichExternalUrl || immichLanUrl;
   const health = status.disk.raid.healthy && status.disk.disks.every((disk) => disk.present && disk.smartPassed !== false);
 
   return (
@@ -222,12 +250,12 @@ function Dashboard({ status, refresh }: { status: Status; refresh: () => void })
         <div className="statusLead"><span className="statusIcon">✓</span><div><strong>RAID1 {status.disk.raid.members}</strong><small>{status.disk.raid.active} / {status.disk.raid.expected} HDD 稼働中</small></div></div>
         <div className="metric"><span>空き容量</span><strong>{bytes(status.disk.storage.free)}</strong><small>{bytes(status.disk.storage.total)} 中</small></div>
         <div className="metric"><span>IMMICH</span><strong>{status.immich.online ? "稼働中" : "停止"}</strong><small>{status.immich.initialized ? "登録済み" : "準備中"}</small></div>
-        <div className="metric"><span>TAILSCALE</span><strong>{status.tailscale ? "稼働中" : "停止"}</strong><small>外出先・遠隔保守</small></div>
+        <div className="metric"><span>TAILSCALE</span><strong>{status.tailscaleExternalReady ? "外出先OK" : status.tailscaleState === "Running" ? "接続済み" : status.tailscale ? "認証待ち" : "停止"}</strong><small>外出先・遠隔保守</small></div>
       </section>
 
       <section className="actionGrid">
         <article className="actionCard accent"><span className="cardKicker">WINDOWS</span><h2>PC写真フォルダ</h2><p><code>{status.share}</code> を空いているドライブへ追加し、再起動後も自動接続します。</p><a className="cardButton" href="/api/windows-connect.cmd">接続ツールをダウンロード</a><div className="minorActions"><button onClick={() => setShowSmbPassword(!showSmbPassword)}>共有パスワードを変更</button><a href="/api/windows-disconnect.cmd">接続解除ツール</a></div>{showSmbPassword && <form className="inlineForm" onSubmit={changeSmbPassword}><input type="password" minLength={8} value={newSmbPassword} onChange={(event) => setNewSmbPassword(event.target.value)} placeholder="新しい共有パスワード" required /><button>変更</button></form>}</article>
-        <article className="actionCard"><span className="cardKicker">IMMICH</span><h2>写真を見る</h2><p>スマホ写真とPC写真を同じタイムラインで表示します。</p><a className="cardButton secondary" href={immichUrl} target="_blank" rel="noreferrer">Immichを開く</a></article>
+        <article className="actionCard"><span className="cardKicker">IMMICH</span><h2>写真を見る</h2><p>スマホ写真とPC写真を同じタイムラインで表示します。{status.tailscaleExternalReady ? "外出先からも利用できます。" : "現在はLAN内から利用できます。"}</p><a className="cardButton secondary" href={immichUrl} target="_blank" rel="noreferrer">Immichを開く</a></article>
         <article className="actionCard"><span className="cardKicker">NTFY</span><h2>故障通知</h2><p>スマホでQRを読み、HDD異常と保守申請を受け取ります。</p><button className="cardButton secondary" onClick={testNotification}>テスト通知を送る</button></article>
       </section>
 
@@ -235,7 +263,15 @@ function Dashboard({ status, refresh }: { status: Status; refresh: () => void })
         <article className="panel"><div className="panelHead"><div><span className="cardKicker">ANDROID NOTIFICATION</span><h2>ntfyをスマホへ登録</h2></div></div>
           <div className="qrRow"><img src="/api/notifications/qr.png" alt="ntfy通知登録用QRコード" /><div><ol><li>スマホにntfyをインストール</li><li>このQRコードを読み取る</li><li>下のボタンで通知を確認</li></ol>{notice && <div className="noticeLinks"><a href={notice.subscribeUrl}>スマホのntfyで開く</a><a href={notice.webUrl} target="_blank" rel="noreferrer">PCブラウザで通知を見る</a></div>}{message && <div className="inlineMessage">{message}</div>}</div></div>
         </article>
-        <article className="panel"><div className="panelHead"><div><span className="cardKicker">REMOTE ACCESS</span><h2>Tailscale</h2></div></div><p>引き渡し時に、所有者本人のTailscaleへNASを登録します。</p><button className="cardButton secondary" onClick={connectTailscale}>所有者のTailscaleへ接続</button>{tailscaleUrl && <a className="authLink" href={tailscaleUrl} target="_blank" rel="noreferrer">Tailscaleの認証を開く →</a>}{status.handoffReady && !status.handoffComplete && <div className="handoffBox"><strong>所有者の接続後に実行</strong><p>構築用ログインを停止し、写真へ入れない保守経路だけ残します。</p><button onClick={completeHandoff}>引き渡しを完了する</button></div>}{status.handoffComplete && <div className="handoffDone">✓ 引き渡し済み・構築用ログイン停止</div>}</article>
+        <article className="panel"><div className="panelHead"><div><span className="cardKicker">REMOTE ACCESS</span><h2>Tailscale</h2></div></div>
+          {!status.handoffReady && <><p>所有者本人のTailscaleへNASを登録します。スマホと外出先PCにもTailscaleアプリが必要です。</p><button className="cardButton secondary" onClick={connectTailscale}>所有者のTailscaleへ接続</button></>}
+          {tailscaleUrl && status.tailscaleState !== "Running" && <a className="authLink" href={tailscaleUrl} target="_blank" rel="noreferrer">Tailscaleの認証を開く →</a>}
+          {status.handoffReady && status.tailscaleState !== "Running" && <p className="waitingText">Tailscaleの認証完了を待っています。この画面は自動更新されます。</p>}
+          {status.tailscaleState === "Running" && !status.tailscaleExternalReady && <><p>接続を確認しました。次にImmichと管理画面を、所有者のTailscale内だけでHTTPS公開します。</p><button className="cardButton secondary" onClick={configureTailscale}>外出先アクセスを設定</button></>}
+          {tailscaleConsentUrl && <a className="authLink" href={tailscaleConsentUrl} target="_blank" rel="noreferrer">TailscaleでHTTPSを許可する →</a>}
+          {status.tailscaleExternalReady && <div className="remoteReady"><strong>✓ 外出先アクセス準備済み</strong><img src="/api/immich/qr.png" alt="Immich外出先URLのQRコード" /><small>スマホで読み取るか、ImmichアプリのサーバーURLへ入力</small><code>{status.immichExternalUrl}</code><div className="appLinks"><a href="https://play.google.com/store/apps/details?id=com.tailscale.ipn" target="_blank" rel="noreferrer">Tailscaleを入れる</a><a href="https://play.google.com/store/apps/details?id=app.alextran.immich" target="_blank" rel="noreferrer">Immichを入れる</a></div></div>}
+          {status.tailscaleExternalReady && !status.handoffComplete && <div className="handoffBox"><strong>最後の引き渡し操作</strong><p>外出先からImmichを開けることを確認後、構築用ログインを停止します。</p><button onClick={completeHandoff}>引き渡しを完了する</button></div>}{status.handoffComplete && <div className="handoffDone">✓ 引き渡し済み・構築用ログイン停止</div>}
+        </article>
       </section>
 
       <section id="support" className="panel supportPanel"><div className="panelHead"><div><span className="cardKicker">SUPPORT ACCESS</span><h2>保守権限の申請</h2></div><span>許可は1時間</span></div>

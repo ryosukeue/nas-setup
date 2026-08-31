@@ -4,7 +4,7 @@
 import argparse
 import secrets
 
-from app import db, iso, send_ntfy
+from app import db, iso, send_ntfy, setting
 
 
 def main() -> None:
@@ -23,7 +23,7 @@ def main() -> None:
         "保守担当者から作業申請があります。NASの管理画面で内容を確認してください。",
         title="写真NAS 保守申請",
         priority="high",
-        click="http://nas.local/#support",
+        click=f"{setting('admin_external_url', 'http://nas.local')}/#support",
     )
     print(f"申請しました。申請ID: {request_id}")
     print("所有者が承認すると、1時間だけ保守操作が可能になります。")

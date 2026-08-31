@@ -157,6 +157,20 @@ def service_active(name: str) -> bool:
     return run(["systemctl", "is-active", "--quiet", name], check=False).returncode == 0
 
 
+def tailscale_state() -> dict:
+    result = run(["tailscale", "status", "--json"], check=False)
+    try:
+        report = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        report = {}
+    self_node = report.get("Self") or {}
+    return {
+        "backendState": report.get("BackendState", "Stopped"),
+        "dnsName": str(self_node.get("DNSName", "")).rstrip("."),
+        "addresses": self_node.get("TailscaleIPs", []),
+    }
+
+
 def immich_state() -> dict:
     try:
         config = api_json("/server/config")
@@ -256,11 +270,17 @@ def status():
         "immich": immich_state(),
     }
     if session.get("owner"):
+        tailnet = tailscale_state()
         result.update({
             "ownerName": setting("owner_name", ""),
             "share": f"\\\\{os.uname().nodename}.local\\Photos",
             "ntfyConfigured": bool(setting("ntfy_topic")),
             "tailscale": service_active("tailscaled"),
+            "tailscaleState": tailnet["backendState"],
+            "tailscaleDnsName": tailnet["dnsName"],
+            "immichExternalUrl": setting("immich_external_url", ""),
+            "adminExternalUrl": setting("admin_external_url", ""),
+            "tailscaleExternalReady": bool(setting("tailscale_external_ready", False)),
             "handoffReady": bool(setting("tailscale_reenroll_started", False)),
             "handoffComplete": bool(setting("handoff_complete", False)),
         })
@@ -456,8 +476,12 @@ def audit_log():
 @app.post("/api/tailscale/start")
 @owner_required
 def tailscale_start():
+    run(["tailscale", "serve", "reset"], check=False)
     run(["tailscale", "logout"], check=False)
     set_setting("tailscale_reenroll_started", True)
+    set_setting("tailscale_external_ready", False)
+    set_setting("immich_external_url", "")
+    set_setting("admin_external_url", "")
     result = run(
         ["tailscale", "up", "--ssh=false", "--hostname", "nas", "--timeout=15s"],
         check=False,
@@ -467,6 +491,58 @@ def tailscale_start():
     match = re.search(r"https://login\.tailscale\.com/\S+", output)
     audit("owner", "tailscale.reenroll")
     return jsonify({"ok": result.returncode == 0, "authUrl": match.group(0) if match else None})
+
+
+@app.get("/api/tailscale/status")
+@owner_required
+def tailscale_status():
+    return jsonify(tailscale_state())
+
+
+@app.post("/api/tailscale/configure")
+@owner_required
+def tailscale_configure():
+    state = tailscale_state()
+    if not setting("tailscale_reenroll_started", False) or state["backendState"] != "Running":
+        return jsonify({"error": "所有者のTailscale認証がまだ完了していません"}), 409
+    if not state["dnsName"]:
+        return jsonify({"error": "Tailscaleの端末名を取得できません"}), 409
+
+    outputs = []
+    for port, target in (("443", "http://127.0.0.1:2283"), ("8443", "http://127.0.0.1:80")):
+        result = run(["tailscale", "serve", "--bg", f"--https={port}", target], check=False)
+        output = (result.stdout + "\n" + result.stderr).strip()
+        outputs.append(output)
+        if result.returncode != 0:
+            match = re.search(r"https://login\.tailscale\.com/\S+", output)
+            audit("owner", "tailscale.serve.failed", output)
+            return jsonify({
+                "ok": False,
+                "error": "TailscaleのHTTPS許可が必要です" if match else "外出先アクセスを設定できませんでした",
+                "consentUrl": match.group(0) if match else None,
+            })
+
+    immich_url = f"https://{state['dnsName']}"
+    admin_url = f"https://{state['dnsName']}:8443"
+    set_setting("immich_external_url", immich_url)
+    set_setting("admin_external_url", admin_url)
+    set_setting("tailscale_external_ready", True)
+    audit("owner", "tailscale.serve.configured", f"{immich_url} {admin_url}")
+    return jsonify({"ok": True, "immichUrl": immich_url, "adminUrl": admin_url})
+
+
+@app.get("/api/immich/qr.png")
+@owner_required
+def immich_qr():
+    url = setting("immich_external_url", "")
+    if not url:
+        return jsonify({"error": "先に外出先アクセスを設定してください"}), 409
+    result = subprocess.run(
+        ["qrencode", "-t", "PNG", "-o", "-", "-s", "8", url],
+        capture_output=True,
+        check=True,
+    )
+    return send_file(io.BytesIO(result.stdout), mimetype="image/png")
 
 
 @app.post("/api/handoff/complete")
@@ -479,13 +555,10 @@ def handoff_complete():
         return jsonify({"ok": True})
     if not setting("tailscale_reenroll_started", False):
         return jsonify({"error": "先に所有者のTailscaleへ接続してください"}), 409
-    status_result = run(["tailscale", "status", "--json"], check=False)
-    try:
-        backend_state = json.loads(status_result.stdout).get("BackendState")
-    except json.JSONDecodeError:
-        backend_state = None
-    if backend_state != "Running":
+    if tailscale_state()["backendState"] != "Running":
         return jsonify({"error": "Tailscaleの接続完了を確認できません"}), 409
+    if not setting("tailscale_external_ready", False):
+        return jsonify({"error": "先にImmichの外出先アクセスを設定してください"}), 409
 
     authorized_keys = Path("/home/ryo/.ssh/authorized_keys")
     if authorized_keys.exists():
