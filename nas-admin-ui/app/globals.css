@@ -71,6 +71,8 @@ footer b { color: var(--ink); }
 .formCard > p { color: var(--muted); line-height: 1.7; margin: 0 0 24px; }
 .formGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .formGrid .wide { grid-column: 1 / -1; }
+.inlineCheck { display: flex; align-items: center; gap: 10px; font-weight: 650; color: var(--muted); }
+.inlineCheck input { width: 18px; height: 18px; accent-color: var(--green); }
 label { display: grid; gap: 8px; font-size: 12px; font-weight: 750; }
 input { width: 100%; border: 1px solid #cfd4cc; border-radius: 10px; padding: 13px 14px; background: white; color: var(--ink); outline: none; }
 input:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(23,107,74,.1); }
@@ -99,6 +101,11 @@ input:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(23,107,74,.
 code { display: inline-block; color: inherit; overflow-wrap: anywhere; }
 .cardButton { margin-top: auto; display: inline-flex; justify-content: center; align-items: center; min-height: 42px; border: 0; border-radius: 10px; padding: 10px 13px; background: var(--orange); color: white; text-decoration: none; font-weight: 800; font-size: 12px; cursor: pointer; }
 .cardButton.secondary { background: var(--green-soft); color: var(--green); }
+.minorActions { display: flex; justify-content: space-between; gap: 10px; margin-top: 12px; }
+.minorActions button, .minorActions a { border: 0; padding: 0; background: none; color: #c6d3cc; font: inherit; font-size: 11px; text-decoration: underline; cursor: pointer; }
+.inlineForm { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 12px; }
+.inlineForm input { min-width: 0; padding: 10px; }
+.inlineForm button { border: 0; border-radius: 8px; padding: 0 13px; color: white; background: var(--green); font-weight: 800; cursor: pointer; }
 .splitSection { display: grid; grid-template-columns: 1.35fr 1fr; gap: 14px; padding: 0 0 14px; }
 .panel { padding: 24px; }
 .panelHead { display: flex; justify-content: space-between; align-items: start; }
@@ -156,4 +163,6 @@ code { display: inline-block; color: inherit; overflow-wrap: anywhere; }
   .qrRow { grid-template-columns: 1fr; }
   .requestRow { grid-template-columns: 1fr auto; }
   .requestActions { grid-column: 1 / -1; }
+  .inlineForm { grid-template-columns: 1fr; }
+  .inlineForm button { min-height: 38px; }
 }

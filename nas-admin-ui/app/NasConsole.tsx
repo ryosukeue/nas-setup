@@ -96,14 +96,19 @@ function Setup({ status, onDone }: { status: Status; onDone: () => void }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [form, setForm] = useState({ name: "", email: "", ownerPassword: "" });
+  const [samePasswords, setSamePasswords] = useState(true);
+  const [form, setForm] = useState({ name: "", email: "", ownerPassword: "", immichPassword: "", smbPassword: "" });
 
   async function submit(event: FormEvent) {
     event.preventDefault(); setBusy(true); setError("");
     try {
       await api("/api/setup", {
         method: "POST",
-        body: JSON.stringify({ ...form, immichPassword: form.ownerPassword, smbPassword: form.ownerPassword }),
+        body: JSON.stringify({
+          ...form,
+          immichPassword: samePasswords ? form.ownerPassword : form.immichPassword,
+          smbPassword: samePasswords ? form.ownerPassword : form.smbPassword,
+        }),
       });
       onDone();
     } catch (reason) {
@@ -138,9 +143,14 @@ function Setup({ status, onDone }: { status: Status; onDone: () => void }) {
         <div className="formGrid">
           <label>表示名<input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="例：山田 太郎" required /></label>
           <label>メールアドレス<input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} placeholder="Immichのログインに使用" required /></label>
-          <label className="wide">パスワード<input type="password" minLength={8} value={form.ownerPassword} onChange={(event) => setForm({ ...form, ownerPassword: event.target.value })} placeholder="8文字以上" required /></label>
+          <label className="wide">NAS管理パスワード<input type="password" minLength={8} value={form.ownerPassword} onChange={(event) => setForm({ ...form, ownerPassword: event.target.value })} placeholder="8文字以上" required /></label>
+          <label className="wide inlineCheck"><input type="checkbox" checked={samePasswords} onChange={(event) => setSamePasswords(event.target.checked)} />ImmichとWindows共有にも同じパスワードを使う</label>
+          {!samePasswords && <>
+            <label>Immichパスワード<input type="password" minLength={8} value={form.immichPassword} onChange={(event) => setForm({ ...form, immichPassword: event.target.value })} required /></label>
+            <label>Windows共有パスワード<input type="password" minLength={8} value={form.smbPassword} onChange={(event) => setForm({ ...form, smbPassword: event.target.value })} required /></label>
+          </>}
         </div>
-        <div className="noteBox">このパスワードをNAS管理、Windows共有、Immichに使用します。あとから個別に変更できます。</div>
+        <div className="noteBox">Windows共有のユーザー名は <b>nasowner</b> です。パスワードはあとから管理画面で変更できます。</div>
         {error && <div className="errorBox">{error}</div>}
         <button className="primary full" disabled={busy}>{busy ? "写真フォルダとImmichを準備中…" : "まとめて設定する"}</button>
       </form></div>}
@@ -153,6 +163,8 @@ function Dashboard({ status, refresh }: { status: Status; refresh: () => void })
   const [requests, setRequests] = useState<SupportRequest[]>([]);
   const [notice, setNotice] = useState<{ subscribeUrl: string; webUrl: string } | null>(null);
   const [tailscaleUrl, setTailscaleUrl] = useState("");
+  const [showSmbPassword, setShowSmbPassword] = useState(false);
+  const [newSmbPassword, setNewSmbPassword] = useState("");
   const load = useCallback(async () => {
     try {
       const [support, notification] = await Promise.all([
@@ -173,6 +185,16 @@ function Dashboard({ status, refresh }: { status: Status; refresh: () => void })
   }
   async function decide(id: string, decision: "approve" | "deny") {
     await api(`/api/support/requests/${id}/${decision}`, { method: "POST" }); await load();
+  }
+  async function changeSmbPassword(event: FormEvent) {
+    event.preventDefault();
+    try {
+      await api("/api/smb/password", { method: "POST", body: JSON.stringify({ password: newSmbPassword }) });
+      setNewSmbPassword(""); setShowSmbPassword(false);
+      setMessage("Windows共有パスワードを変更しました。Windows側を接続し直してください。");
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : "パスワードを変更できませんでした");
+    }
   }
   async function connectTailscale() {
     if (!window.confirm("現在のTailscale接続を解除し、所有者のアカウントへ接続し直します。続けますか？")) return;
@@ -204,7 +226,7 @@ function Dashboard({ status, refresh }: { status: Status; refresh: () => void })
       </section>
 
       <section className="actionGrid">
-        <article className="actionCard accent"><span className="cardKicker">WINDOWS</span><h2>PC写真フォルダ</h2><p><code>{status.share}</code> をP:ドライブとしてWindowsへ追加します。</p><a className="cardButton" href="/api/windows-connect.cmd">接続ツールをダウンロード</a></article>
+        <article className="actionCard accent"><span className="cardKicker">WINDOWS</span><h2>PC写真フォルダ</h2><p><code>{status.share}</code> を空いているドライブへ追加し、再起動後も自動接続します。</p><a className="cardButton" href="/api/windows-connect.cmd">接続ツールをダウンロード</a><div className="minorActions"><button onClick={() => setShowSmbPassword(!showSmbPassword)}>共有パスワードを変更</button><a href="/api/windows-disconnect.cmd">接続解除ツール</a></div>{showSmbPassword && <form className="inlineForm" onSubmit={changeSmbPassword}><input type="password" minLength={8} value={newSmbPassword} onChange={(event) => setNewSmbPassword(event.target.value)} placeholder="新しい共有パスワード" required /><button>変更</button></form>}</article>
         <article className="actionCard"><span className="cardKicker">IMMICH</span><h2>写真を見る</h2><p>スマホ写真とPC写真を同じタイムラインで表示します。</p><a className="cardButton secondary" href={immichUrl} target="_blank" rel="noreferrer">Immichを開く</a></article>
         <article className="actionCard"><span className="cardKicker">NTFY</span><h2>故障通知</h2><p>スマホでQRを読み、HDD異常と保守申請を受け取ります。</p><button className="cardButton secondary" onClick={testNotification}>テスト通知を送る</button></article>
       </section>

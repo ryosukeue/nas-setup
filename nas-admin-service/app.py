@@ -357,8 +357,61 @@ def notification_test():
 @app.get("/api/windows-connect.cmd")
 @owner_required
 def windows_connect():
-    script = "@echo off\r\nchcp 65001 >nul\r\necho 写真NASをPドライブへ接続します。\r\nnet use P: \\\\nas.local\\Photos /user:nasowner * /persistent:yes\r\npause\r\n"
+    script = r"""@echo off
+chcp 65001 >nul
+title 写真NAS Windows接続
+echo 写真NASをWindowsへ接続します。
+echo パスワード画面では、初期設定で決めたWindows共有パスワードを入力してください。
+echo.
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$ErrorActionPreference='Stop';" ^
+  "$remote='\\nas.local\Photos';" ^
+  "$existing=Get-SmbMapping -ErrorAction SilentlyContinue ^| Where-Object RemotePath -EQ $remote ^| Select-Object -First 1;" ^
+  "if($existing){Write-Host ('すでに {0} へ接続済みです。' -f $existing.LocalPath); exit 0};" ^
+  "$used=@(Get-SmbMapping -ErrorAction SilentlyContinue ^| ForEach-Object LocalPath) + @(Get-PSDrive -PSProvider FileSystem ^| ForEach-Object {$_.Name + ':'});" ^
+  "$drive=@('P:','S:','N:','Z:','Y:') ^| Where-Object {$used -notcontains $_} ^| Select-Object -First 1;" ^
+  "if(-not $drive){throw '利用できるドライブ文字がありません。'};" ^
+  "$credential=Get-Credential -UserName 'nasowner' -Message '写真NASのWindows共有パスワード';" ^
+  "New-SmbMapping -LocalPath $drive -RemotePath $remote -Credential $credential -Persistent $true -SaveCredentials -ErrorAction Stop ^| Out-Null;" ^
+  "Write-Host ('接続しました: {0} → {1}' -f $drive,$remote) -ForegroundColor Green;"
+if errorlevel 1 (
+  echo.
+  echo 接続できませんでした。パスワードとLAN接続を確認してください。
+)
+echo.
+pause
+""".replace("\n", "\r\n")
     return Response(script, mimetype="application/octet-stream", headers={"Content-Disposition": "attachment; filename=connect-photo-nas.cmd"})
+
+
+@app.get("/api/windows-disconnect.cmd")
+@owner_required
+def windows_disconnect():
+    script = r"""@echo off
+chcp 65001 >nul
+title 写真NAS Windows接続解除
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$remote='\\nas.local\Photos';" ^
+  "Get-SmbMapping -ErrorAction SilentlyContinue ^| Where-Object RemotePath -EQ $remote ^| Remove-SmbMapping -Force -UpdateProfile -ErrorAction SilentlyContinue;"
+cmdkey /delete:nas.local >nul 2>&1
+echo 写真NASのドライブ割り当てと保存済み認証情報を削除しました。
+pause
+""".replace("\n", "\r\n")
+    return Response(script, mimetype="application/octet-stream", headers={"Content-Disposition": "attachment; filename=disconnect-photo-nas.cmd"})
+
+
+@app.post("/api/smb/password")
+@owner_required
+def smb_password():
+    data = request.get_json(silent=True) or {}
+    password = str(data.get("password", ""))
+    if len(password) < 8:
+        return jsonify({"error": "Windows共有パスワードは8文字以上にしてください"}), 400
+    if "\n" in password or "\r" in password:
+        return jsonify({"error": "パスワードに改行は使用できません"}), 400
+    ensure_samba(password)
+    audit("owner", "smb.password.changed")
+    return jsonify({"ok": True})
 
 
 @app.get("/api/support/requests")
