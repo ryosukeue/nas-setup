@@ -1,6 +1,6 @@
 # Photo NAS Architecture
 
-更新日: 2026-08-25
+更新日: 2026-08-31
 
 ## 概要
 
@@ -27,7 +27,7 @@ flowchart LR
         API[管理API<br/>Gunicorn/Flask :8787]
         Samba[Samba + WS-Discovery<br/>SMB :445]
         Immich[Immich v3.1.0<br/>Docker :2283]
-        Tail[Tailscale + OpenSSH<br/>SSH :22]
+        Tail[Tailscale Serve + OpenSSH<br/>HTTPS :443/:8443・SSH :22]
         Monitor[RAID/SMART監視<br/>systemd timer]
         State[(管理状態DB<br/>SQLite)]
         PCPhotos[(PC写真<br/>/srv/photos/pc)]
@@ -45,6 +45,9 @@ flowchart LR
     Nginx -->|/api/*| API
     Windows -->|\\nas.local\Photos| Samba
     Phone -->|写真アップロード・閲覧| Immich
+    Phone -->|Tailnet内HTTPS| Tail
+    Tail -->|:443| Immich
+    Tail -->|:8443| Nginx
     Samba --> PCPhotos
     Immich -->|読み取り専用外部ライブラリ| PCPhotos
     Immich --> ImmichData
@@ -85,11 +88,13 @@ flowchart LR
 | 初期設定・NAS管理 | `http://nas.local` | nginx → 静的管理画面 |
 | 管理API | `http://nas.local/api/*` | nginx → `127.0.0.1:8787` |
 | Immich | `http://nas.local:2283` | Docker上のImmich Server |
+| 外出先Immich | `https://nas.<所有者のtailnet名>.ts.net` | Tailscale Serve → `127.0.0.1:2283` |
+| 外出先NAS管理 | `https://nas.<所有者のtailnet名>.ts.net:8443` | Tailscale Serve → nginx |
 | Windows写真共有 | `\\nas.local\Photos` | Samba `/srv/photos/pc` |
 | Windows自動検出 | Windowsの「ネットワーク」 | WS-Discovery |
 | 遠隔保守 | Tailscale IP/名前のSSH :22 | OpenSSH `support` ユーザー |
 
-NASは家庭用ルーターからDHCPでIPアドレスを取得する。Avahiが `nas.local` を広告するため、通常はIPアドレスを確認する必要がない。ブラウザの安全制限上、Windowsのネットワークドライブを無確認で追加することはできないため、管理画面から接続用 `.cmd` をダウンロードし、所有者が一度実行してパスワードを入力する。
+NASは家庭用ルーターからDHCPでIPアドレスを取得する。Avahiが `nas.local` を広告するため、通常はIPアドレスを確認する必要がない。ブラウザの安全制限上、Windowsのネットワークドライブを無確認で追加することはできないため、管理画面から接続用 `.cmd` をダウンロードし、所有者が一度実行してパスワードを入力する。接続ツールは空いているドライブ文字を選び、Windows資格情報と永続マッピングを保存するため、再起動後も再接続する。
 
 ## 初期設定フロー
 
@@ -112,6 +117,9 @@ sequenceDiagram
     Owner->>UI: Windows接続ツールを取得
     Owner->>UI: ntfyのQRを登録
     Owner->>TS: 自分のTailnetでNASを認証
+    Owner->>UI: 外出先アクセスを設定
+    UI->>TS: Immich :443・管理画面 :8443をHTTPS公開
+    UI-->>Owner: ImmichサーバーURLとスマホ用QRを表示
     Owner->>UI: 引き渡し完了を確認
     UI->>API: 構築用ryoログインを停止
 ```
@@ -130,6 +138,7 @@ sequenceDiagram
 - Immich外部ライブラリID
 - 保守申請、期限、監査ログ
 - 初期設定・Tailscale引き渡し状態
+- Tailnet内のImmich URL、管理画面URL、HTTPS公開完了状態
 
 平文パスワード、Immichデータベース秘密情報、写真、ntfyトピックをGitへコミットしない。
 
@@ -160,7 +169,7 @@ sequenceDiagram
     Broker->>Broker: 申請ID・理由・時刻を記録
     Broker->>Ntfy: 保守申請通知
     Ntfy-->>Owner: Android/PCへ通知
-    Owner->>Broker: nas.localで許可または拒否
+    Owner->>Broker: Tailnet内の管理画面で許可または拒否
     alt 1時間許可
         Broker->>Broker: 承認時刻と失効時刻を保存
         Support->>Broker: nas-maint status/restart/check-disks
@@ -177,7 +186,7 @@ sequenceDiagram
 - Immich、Samba、Tailscale、管理画面の再起動
 - RAID/SMART確認の実行
 
-任意のシェル、任意のコマンド、写真ファイルの参照は許可しない。所有者が自分のTailnetへ登録した後、保守を依頼する場合はTailscale側でも保守担当者へ対象NASへの到達権限を与える必要がある。
+任意のシェル、任意のコマンド、写真ファイルの参照は許可しない。所有者が自分のTailnetへ登録した後、保守を依頼する場合はTailscale側でも保守担当者へ対象NASへの到達権限を与える必要がある。ntfyの保守申請通知は外出先用管理URLを開くが、Tailnetに参加していない端末からは到達できない。
 
 ## HDD・RAID監視
 
