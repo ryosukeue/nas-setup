@@ -17,8 +17,10 @@ Ubuntu Serverを、CLI不要で使える写真NASとして引き渡すための�
 - Avahi/mDNSによる `nas.local`
 - Samba/SMB3とWS-DiscoveryによるWindows共有
 - Immich v3.1.0
-- Tailscaleと写真権限を持たない保守専用ユーザー
+- 所有者のTailnet内だけで利用する外出先Immich
 - 1時間ごとのRAID/物理HDD/SMART総合判定
 - アカウント不要のntfy通知
 
 秘密情報と利用者データはGitHubへ保存しません。全体構成は `ARCHITECTURE.md`、実機の状態は `IMPLEMENTATION_STATUS.md`、接続履歴は `NAS_CONNECTION.md`、設計判断は `NAS_PRODUCT_DESIGN.md` に記録します。
+
+販売者用の遠隔保守アカウント、権限申請、一時昇格機能はありません。引き渡し完了後は構築用ログインも停止し、販売者はSSH接続できません。

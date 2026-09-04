@@ -1,6 +1,6 @@
 # Ubuntu Server 接続・導入記録
 
-更新日: 2026-08-25
+更新日: 2026-09-04
 
 ## 検出結果
 
@@ -33,16 +33,8 @@
 - 管理画面: `/opt/nas-admin-ui-static`
 - 利用者設定・秘密情報: `/var/lib/nas-admin/state.db`
 
-## 遠隔保守
+## 引き渡しとSSH
 
-引き渡し時、所有者が管理画面から自分のTailnetへNASを再登録する。認証後に「引き渡しを完了する」を押すと、構築用 `ryo` ログインを停止する。販売者は写真グループに属さない `support` アカウントだけを利用する。
+引き渡し時、所有者が管理画面から自分のTailnetへNASを再登録する。外出先からImmichを開けることを確認して「引き渡しを完了する」を押すと、構築用 `ryo` のSSH鍵、パスワード、sudo所属、ログインシェルを停止する。
 
-```sh
-ssh -i ~/.ssh/nas_ed25519 support@NASのTailscale名またはIP
-nas-support request "Immichの点検"
-nas-maint status
-```
-
-`nas-maint` は、所有者が管理画面で申請を1時間許可した間だけ動く。任意のrootシェルではなく、状態確認、主要サービス再起動、ディスク確認の固定操作に限定する。
-
-販売者Tailnet上のIPと初期構築用 `ryo` SSH経路は引き渡し前の仮経路であり、所有者によるTailscale再登録後は無効になる。
+販売者用の `support` アカウント、遠隔保守申請、一時管理権限は廃止した。販売者Tailnet上のIPと `ryo` SSH経路は引き渡し前の構築専用であり、引き渡し後に販売者がSSH接続する経路は残さない。

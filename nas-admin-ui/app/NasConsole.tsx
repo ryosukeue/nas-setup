@@ -26,19 +26,11 @@ type Status = {
   immich: { online: boolean; initialized: boolean };
 };
 
-type SupportRequest = {
-  id: string;
-  created_at: string;
-  reason: string;
-  status: "pending" | "approved" | "denied";
-  expires_at?: string;
-};
-
 const steps = [
   { number: "01", title: "所有者", detail: "NASとImmichのアカウント" },
   { number: "02", title: "PC写真", detail: "WindowsのP:ドライブ" },
   { number: "03", title: "スマホ", detail: "Immichとntfy通知" },
-  { number: "04", title: "遠隔接続", detail: "Tailscaleと保守権限" },
+  { number: "04", title: "外出先", detail: "TailscaleでImmichへ接続" },
 ];
 
 async function api<T>(path: string, options?: RequestInit): Promise<T> {
@@ -165,24 +157,18 @@ function Setup({ status, onDone }: { status: Status; onDone: () => void }) {
 
 function Dashboard({ status, refresh }: { status: Status; refresh: () => void }) {
   const [message, setMessage] = useState("");
-  const [requests, setRequests] = useState<SupportRequest[]>([]);
   const [notice, setNotice] = useState<{ subscribeUrl: string; webUrl: string } | null>(null);
   const [tailscaleUrl, setTailscaleUrl] = useState("");
   const [tailscaleConsentUrl, setTailscaleConsentUrl] = useState("");
   const [showSmbPassword, setShowSmbPassword] = useState(false);
   const [newSmbPassword, setNewSmbPassword] = useState("");
-  const load = useCallback(async () => {
-    try {
-      const [support, notification] = await Promise.all([
-        api<SupportRequest[]>("/api/support/requests"), api<{ subscribeUrl: string; webUrl: string }>("/api/notifications"),
-      ]);
-      setRequests(support); setNotice(notification);
-    } catch { /* status page remains useful if a secondary request fails */ }
-  }, []);
   useEffect(() => {
-    const timer = window.setTimeout(load, 0);
+    const timer = window.setTimeout(async () => {
+      try { setNotice(await api<{ subscribeUrl: string; webUrl: string }>("/api/notifications")); }
+      catch { /* status page remains useful if notification details fail */ }
+    }, 0);
     return () => window.clearTimeout(timer);
-  }, [load]);
+  }, []);
   useEffect(() => {
     if (!tailscaleUrl || status.tailscaleState === "Running") return;
     const timer = window.setInterval(refresh, 3000);
@@ -193,9 +179,6 @@ function Dashboard({ status, refresh }: { status: Status; refresh: () => void })
     setMessage("通知を送っています…");
     try { await api("/api/notifications/test", { method: "POST" }); setMessage("スマホへテスト通知を送りました"); }
     catch (reason) { setMessage(reason instanceof Error ? reason.message : "通知に失敗しました"); }
-  }
-  async function decide(id: string, decision: "approve" | "deny") {
-    await api(`/api/support/requests/${id}/${decision}`, { method: "POST" }); await load();
   }
   async function changeSmbPassword(event: FormEvent) {
     event.preventDefault();
@@ -229,7 +212,7 @@ function Dashboard({ status, refresh }: { status: Status; refresh: () => void })
     }
   }
   async function completeHandoff() {
-    if (!window.confirm("構築用ryoログインを永久に停止します。今後の保守は、あなたが許可した固定操作だけになります。続けますか？")) return;
+    if (!window.confirm("構築用ryoログインを永久に停止します。以後、販売者による遠隔SSH保守はできません。続けますか？")) return;
     try {
       await api("/api/handoff/complete", { method: "POST", body: JSON.stringify({ confirm: true }) });
       setMessage("引き渡しが完了しました。構築用ログインは停止されました。");
@@ -250,13 +233,13 @@ function Dashboard({ status, refresh }: { status: Status; refresh: () => void })
         <div className="statusLead"><span className="statusIcon">✓</span><div><strong>RAID1 {status.disk.raid.members}</strong><small>{status.disk.raid.active} / {status.disk.raid.expected} HDD 稼働中</small></div></div>
         <div className="metric"><span>空き容量</span><strong>{bytes(status.disk.storage.free)}</strong><small>{bytes(status.disk.storage.total)} 中</small></div>
         <div className="metric"><span>IMMICH</span><strong>{status.immich.online ? "稼働中" : "停止"}</strong><small>{status.immich.initialized ? "登録済み" : "準備中"}</small></div>
-        <div className="metric"><span>TAILSCALE</span><strong>{status.tailscaleExternalReady ? "外出先OK" : status.tailscaleState === "Running" ? "接続済み" : status.tailscale ? "認証待ち" : "停止"}</strong><small>外出先・遠隔保守</small></div>
+        <div className="metric"><span>TAILSCALE</span><strong>{status.tailscaleExternalReady ? "外出先OK" : status.tailscaleState === "Running" ? "接続済み" : status.tailscale ? "認証待ち" : "停止"}</strong><small>外出先のImmich</small></div>
       </section>
 
       <section className="actionGrid">
         <article className="actionCard accent"><span className="cardKicker">WINDOWS</span><h2>PC写真フォルダ</h2><p><code>{status.share}</code> を空いているドライブへ追加し、再起動後も自動接続します。</p><a className="cardButton" href="/api/windows-connect.cmd">接続ツールをダウンロード</a><div className="minorActions"><button onClick={() => setShowSmbPassword(!showSmbPassword)}>共有パスワードを変更</button><a href="/api/windows-disconnect.cmd">接続解除ツール</a></div>{showSmbPassword && <form className="inlineForm" onSubmit={changeSmbPassword}><input type="password" minLength={8} value={newSmbPassword} onChange={(event) => setNewSmbPassword(event.target.value)} placeholder="新しい共有パスワード" required /><button>変更</button></form>}</article>
         <article className="actionCard"><span className="cardKicker">IMMICH</span><h2>写真を見る</h2><p>スマホ写真とPC写真を同じタイムラインで表示します。{status.tailscaleExternalReady ? "外出先からも利用できます。" : "現在はLAN内から利用できます。"}</p><a className="cardButton secondary" href={immichUrl} target="_blank" rel="noreferrer">Immichを開く</a></article>
-        <article className="actionCard"><span className="cardKicker">NTFY</span><h2>故障通知</h2><p>スマホでQRを読み、HDD異常と保守申請を受け取ります。</p><button className="cardButton secondary" onClick={testNotification}>テスト通知を送る</button></article>
+        <article className="actionCard"><span className="cardKicker">NTFY</span><h2>HDD故障通知</h2><p>スマホでQRを読み、RAIDからHDDが消えた時やSMART異常を受け取ります。</p><button className="cardButton secondary" onClick={testNotification}>テスト通知を送る</button></article>
       </section>
 
       <section className="splitSection">
@@ -270,12 +253,8 @@ function Dashboard({ status, refresh }: { status: Status; refresh: () => void })
           {status.tailscaleState === "Running" && !status.tailscaleExternalReady && <><p>接続を確認しました。次にImmichと管理画面を、所有者のTailscale内だけでHTTPS公開します。</p><button className="cardButton secondary" onClick={configureTailscale}>外出先アクセスを設定</button></>}
           {tailscaleConsentUrl && <a className="authLink" href={tailscaleConsentUrl} target="_blank" rel="noreferrer">TailscaleでHTTPSを許可する →</a>}
           {status.tailscaleExternalReady && <div className="remoteReady"><strong>✓ 外出先アクセス準備済み</strong><img src="/api/immich/qr.png" alt="Immich外出先URLのQRコード" /><small>スマホで読み取るか、ImmichアプリのサーバーURLへ入力</small><code>{status.immichExternalUrl}</code><div className="appLinks"><a href="https://play.google.com/store/apps/details?id=com.tailscale.ipn" target="_blank" rel="noreferrer">Tailscaleを入れる</a><a href="https://play.google.com/store/apps/details?id=app.alextran.immich" target="_blank" rel="noreferrer">Immichを入れる</a></div></div>}
-          {status.tailscaleExternalReady && !status.handoffComplete && <div className="handoffBox"><strong>最後の引き渡し操作</strong><p>外出先からImmichを開けることを確認後、構築用ログインを停止します。</p><button onClick={completeHandoff}>引き渡しを完了する</button></div>}{status.handoffComplete && <div className="handoffDone">✓ 引き渡し済み・構築用ログイン停止</div>}
+          {status.tailscaleExternalReady && !status.handoffComplete && <div className="handoffBox"><strong>最後の引き渡し操作</strong><p>外出先からImmichを開けることを確認後、販売者の構築用ログインを完全に停止します。</p><button onClick={completeHandoff}>引き渡しを完了する</button></div>}{status.handoffComplete && <div className="handoffDone">✓ 引き渡し済み・販売者の遠隔ログイン停止</div>}
         </article>
-      </section>
-
-      <section id="support" className="panel supportPanel"><div className="panelHead"><div><span className="cardKicker">SUPPORT ACCESS</span><h2>保守権限の申請</h2></div><span>許可は1時間</span></div>
-        {requests.length === 0 ? <div className="empty">現在、保守申請はありません。</div> : requests.map((item) => <div className="requestRow" key={item.id}><div><strong>{item.reason}</strong><small>{new Date(item.created_at).toLocaleString("ja-JP")}</small></div><span className={`requestStatus ${item.status}`}>{item.status === "pending" ? "確認待ち" : item.status === "approved" ? "許可済み" : "拒否"}</span>{item.status === "pending" && <div className="requestActions"><button onClick={() => decide(item.id, "deny")}>拒否</button><button className="approve" onClick={() => decide(item.id, "approve")}>1時間許可</button></div>}</div>)}
       </section>
 
       <div className="dashboardFoot"><button onClick={refresh}>状態を更新</button><button onClick={async () => { await api("/api/logout", { method: "POST" }); refresh(); }}>ログアウト</button></div>

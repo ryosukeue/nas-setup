@@ -1,12 +1,12 @@
 # Photo NAS Architecture
 
-更新日: 2026-08-31
+更新日: 2026-09-04
 
 ## 概要
 
-Ubuntu Serverを、CLIを使えない所有者でも利用できる写真NASとして構成している。利用者の入口は `http://nas.local` に集約し、WindowsのPC写真、スマホのImmich写真、ディスク故障通知、遠隔保守の初期設定をブラウザから行う。
+Ubuntu Serverを、CLIを使えない所有者でも利用できる写真NASとして構成する。利用者の入口は `http://nas.local`。初回画面からWindows写真共有、Immich、HDD故障通知、所有者用Tailscaleを設定する。
 
-この文書は2026-08-25時点で実機へ導入済みの構成を示す。秘密情報、パスワード、通知トピック、写真データはGitHubへ保存しない。
+販売者用の遠隔保守アカウント、権限申請、一時昇格機能は設けない。秘密情報、パスワード、通知トピック、写真データはGitHubへ保存しない。
 
 ## 全体構成
 
@@ -15,86 +15,54 @@ flowchart LR
     subgraph Client[所有者の端末]
         Browser[PC・スマホのブラウザ]
         Windows[Windows PC]
-        Phone[Immich / ntfy Androidアプリ]
+        Phone[Immich / ntfy / Tailscale]
     end
-
     Router[家庭用ルーター<br/>DHCP]
-
     subgraph NAS[Ubuntu Server: nas]
-        Avahi[Avahi<br/>mDNS: nas.local]
+        Avahi[Avahi<br/>nas.local]
         Nginx[nginx<br/>HTTP :80]
-        UI[初期設定・管理画面<br/>静的React UI]
-        API[管理API<br/>Gunicorn/Flask :8787]
+        UI[初期設定・管理画面]
+        API[管理API<br/>Flask :8787]
         Samba[Samba + WS-Discovery<br/>SMB :445]
-        Immich[Immich v3.1.0<br/>Docker :2283]
-        Tail[Tailscale Serve + OpenSSH<br/>HTTPS :443/:8443・SSH :22]
+        Immich[Immich<br/>Docker :2283]
+        Tail[Tailscale Serve<br/>HTTPS :443/:8443]
         Monitor[RAID/SMART監視<br/>systemd timer]
         State[(管理状態DB<br/>SQLite)]
         PCPhotos[(PC写真<br/>/srv/photos/pc)]
         ImmichData[(Immichデータ<br/>/srv/immich)]
         RAID[(mdadm RAID1 /dev/md0<br/>Btrfs・2TB HDD x2)]
     end
-
     Ntfy[ntfy.sh<br/>アカウント不要通知]
-    Support[保守担当者]
-
     Client --- Router
     Router --- Avahi
     Browser -->|http://nas.local| Nginx
     Nginx --> UI
     Nginx -->|/api/*| API
     Windows -->|\\nas.local\Photos| Samba
-    Phone -->|写真アップロード・閲覧| Immich
     Phone -->|Tailnet内HTTPS| Tail
     Tail -->|:443| Immich
     Tail -->|:8443| Nginx
     Samba --> PCPhotos
-    Immich -->|読み取り専用外部ライブラリ| PCPhotos
+    Immich -->|読み取り専用| PCPhotos
     Immich --> ImmichData
     PCPhotos --> RAID
     ImmichData --> RAID
     API --> State
     Monitor --> State
-    Monitor -->|HTTPS POST| Ntfy
-    API -->|テスト通知・保守申請| Ntfy
-    Support -->|Tailscale + 公開鍵SSH| Tail
-    Tail -->|supportユーザー| API
+    Monitor -->|HDD異常・復旧| Ntfy
 ```
 
-## ストレージ
-
-```text
-/dev/sda2 ─┐
-           ├─ mdadm RAID1 /dev/md0 ─ Btrfs ─ /
-/dev/sdb2 ─┘
-
-/srv/photos/pc/          Windowsから保存するPC写真
-/srv/immich/library/     スマホからImmichへアップロードした原本
-/srv/immich/postgres/    Immichデータベース
-/var/lib/nas-admin/      管理状態、監査ログ、秘密情報
-```
-
-- 実機は2TB HDD 2台のRAID1で、正常時は `/proc/mdstat` が `[UU]` を示す。
-- Sambaは `/srv/photos/pc` を `Photos` として読み書き共有する。
-- Immichコンテナには同じディレクトリを `/mnt/external/pc:ro` として渡す。
-- PC写真の原本操作はWindows側を正とし、ImmichからPC写真を削除・変更させない。
-- スマホ写真とPC写真は、同じImmich所有者のタイムラインへ統合表示する。
-- RAID1は冗長化でありバックアップではない。別媒体または別拠点バックアップは別途必要。
-
-## Web入口とサービス経路
+## 利用経路
 
 | 利用目的 | URL・接続先 | 実体 |
 |---|---|---|
 | 初期設定・NAS管理 | `http://nas.local` | nginx → 静的管理画面 |
-| 管理API | `http://nas.local/api/*` | nginx → `127.0.0.1:8787` |
-| Immich | `http://nas.local:2283` | Docker上のImmich Server |
-| 外出先Immich | `https://nas.<所有者のtailnet名>.ts.net` | Tailscale Serve → `127.0.0.1:2283` |
-| 外出先NAS管理 | `https://nas.<所有者のtailnet名>.ts.net:8443` | Tailscale Serve → nginx |
+| Immich（LAN） | `http://nas.local:2283` | Docker上のImmich |
+| Immich（外出先） | `https://nas.<所有者のtailnet名>.ts.net` | Tailscale Serve → Immich |
+| NAS管理（Tailnet内） | 同URLの`:8443` | Tailscale Serve → nginx |
 | Windows写真共有 | `\\nas.local\Photos` | Samba `/srv/photos/pc` |
-| Windows自動検出 | Windowsの「ネットワーク」 | WS-Discovery |
-| 遠隔保守 | Tailscale IP/名前のSSH :22 | OpenSSH `support` ユーザー |
 
-NASは家庭用ルーターからDHCPでIPアドレスを取得する。Avahiが `nas.local` を広告するため、通常はIPアドレスを確認する必要がない。ブラウザの安全制限上、Windowsのネットワークドライブを無確認で追加することはできないため、管理画面から接続用 `.cmd` をダウンロードし、所有者が一度実行してパスワードを入力する。接続ツールは空いているドライブ文字を選び、Windows資格情報と永続マッピングを保存するため、再起動後も再接続する。
+NASはルーターからDHCPでIPアドレスを取得し、Avahiが `nas.local` を広告する。Windowsのネットワークドライブは、管理画面から `.cmd` をダウンロードし、所有者が一度実行して共有パスワードを入力する。ツールは資格情報と永続マッピングを保存するため、再起動後も再接続する。署名済み専用アプリは不要と判断した。
 
 ## 初期設定フロー
 
@@ -106,102 +74,60 @@ sequenceDiagram
     participant SMB as Samba
     participant Immich as Immich
     participant TS as Tailscale
-
-    Owner->>UI: 名前・メール・パスワードを入力
-    UI->>API: POST /api/setup
+    Owner->>UI: 名前・メール・パスワード
+    UI->>API: 初期設定
     API->>SMB: nasownerとPhotos共有を設定
     API->>Immich: 最初の管理者を作成
     API->>Immich: PC Photos外部ライブラリを作成・スキャン
-    API->>API: ntfyランダムトピックと所有者認証を保存
-    API-->>Owner: 管理ダッシュボードを表示
-    Owner->>UI: Windows接続ツールを取得
+    API->>API: ntfyランダムトピックを保存
+    API-->>Owner: 管理ダッシュボード
+    Owner->>UI: Windows接続ツールを実行
     Owner->>UI: ntfyのQRを登録
     Owner->>TS: 自分のTailnetでNASを認証
     Owner->>UI: 外出先アクセスを設定
-    UI->>TS: Immich :443・管理画面 :8443をHTTPS公開
-    UI-->>Owner: ImmichサーバーURLとスマホ用QRを表示
-    Owner->>UI: 引き渡し完了を確認
+    UI->>TS: ImmichをTailnet内HTTPS公開
+    Owner->>UI: 引き渡し完了
     UI->>API: 構築用ryoログインを停止
 ```
 
-初期設定完了後は同じURLが所有者ダッシュボードへ切り替わり、所有者パスワードによるログインが必要になる。
+名前はImmichの表示名、メールはImmichログインID、パスワードはImmich・NAS管理画面・Windows共有の初期パスワードに使う。管理画面にはハッシュだけを保存し、平文は保存しない。
 
-## 認証情報と秘密情報
+## 写真と権限
 
-ランタイム状態は `/var/lib/nas-admin/state.db` に保存し、ディレクトリをroot専用の `0700` とする。
-
-保存対象:
-
-- 所有者名・メールアドレス
-- scrypt形式のNAS管理パスワードハッシュ
-- 推測困難なランダムntfyトピック
-- Immich外部ライブラリID
-- 保守申請、期限、監査ログ
-- 初期設定・Tailscale引き渡し状態
-- Tailnet内のImmich URL、管理画面URL、HTTPS公開完了状態
-
-平文パスワード、Immichデータベース秘密情報、写真、ntfyトピックをGitへコミットしない。
-
-## 権限分離
-
-| 主体 | 写真フォルダ | root権限 | 用途 |
-|---|---:|---:|---|
-| `nasowner` | 読み書き | なし | Windows SMB所有者 |
-| Immichコンテナ | 読み取り専用 | なし | PC写真の検索・表示 |
-| `support` | アクセス不可 | 一般sudoなし | 遠隔保守申請 |
-| `ryo` | 構築中のみ | 構築中のみ | 初期導入。引き渡し時に停止 |
-| 管理API | 必要な設定のみ | rootサービス | 初期構築と固定操作の仲介 |
-
-所有者が「引き渡しを完了する」を実行すると、構築用 `ryo` アカウントのSSH鍵、パスワード、sudo所属、ログインシェルを停止し、既存セッションも終了する。以後は `support` 経路だけを残す。
-
-完全なroot権限を持つ人から、稼働中の平文写真を暗号学的に隠すことはできない。そのため保守担当者へrootシェルを渡さず、許可済みの固定操作だけをroot仲介プログラムが実行する。
-
-## 遠隔保守フロー
-
-```mermaid
-sequenceDiagram
-    participant Support as 保守担当者
-    participant Broker as 保守仲介
-    participant Ntfy as ntfy
-    participant Owner as 所有者
-
-    Support->>Broker: nas-support request "作業内容"
-    Broker->>Broker: 申請ID・理由・時刻を記録
-    Broker->>Ntfy: 保守申請通知
-    Ntfy-->>Owner: Android/PCへ通知
-    Owner->>Broker: Tailnet内の管理画面で許可または拒否
-    alt 1時間許可
-        Broker->>Broker: 承認時刻と失効時刻を保存
-        Support->>Broker: nas-maint status/restart/check-disks
-        Broker->>Broker: 毎回期限とコマンドを検証
-        Broker-->>Support: 固定操作だけ実行
-    else 拒否または期限切れ
-        Broker-->>Support: 操作を拒否
-    end
+```text
+/srv/photos/pc/          Windowsから保存するPC写真
+/srv/immich/library/     スマホからImmichへアップロードした原本
+/srv/immich/postgres/    Immichデータベース
+/var/lib/nas-admin/      管理状態と秘密情報
 ```
 
-許可される操作:
+| 主体 | PC写真 | 管理権限 | 用途 |
+|---|---:|---:|---|
+| `nasowner` | 読み書き | なし | Windows共有 |
+| Immichコンテナ | 読み取り専用 | なし | PC写真の検索・表示 |
+| `ryo` | 構築中のみ | 構築中のみ | 初期導入。引き渡し時に停止 |
+| 管理API | 必要な設定のみ | rootサービス | 初期設定 |
 
-- RAIDと主要サービスの状態確認
-- Immich、Samba、Tailscale、管理画面の再起動
-- RAID/SMART確認の実行
+所有者が「引き渡しを完了する」と、`ryo` のSSH鍵、パスワード、sudo所属、ログインシェルを停止し、既存セッションも終了する。販売者用アカウントはないため、以後の販売者SSH経路はない。
 
-任意のシェル、任意のコマンド、写真ファイルの参照は許可しない。所有者が自分のTailnetへ登録した後、保守を依頼する場合はTailscale側でも保守担当者へ対象NASへの到達権限を与える必要がある。ntfyの保守申請通知は外出先用管理URLを開くが、Tailnetに参加していない端末からは到達できない。
+PC写真はImmichへ読み取り専用で渡し、Windows側を原本管理の正とする。スマホ写真とPC写真は同じImmich所有者のタイムラインへ表示される。同じ写真を両方へ入れると二重表示になる可能性がある。
 
-## HDD・RAID監視
+## Tailscale
+
+Tailscaleは所有者が外出先からImmichを見るためにだけ使用する。初回画面が現在の構築用Tailnetからログアウトし、所有者本人の認証URLを表示する。登録後にTailscale ServeでImmichをHTTPS `:443`、管理画面を`:8443`へTailnet内限定で公開する。公開インターネットへは露出しない。
+
+## HDD・RAID通知
 
 `nas-disk-monitor.timer` が起動時と1時間ごとに次を確認する。
 
 - `/dev/md0` の期待メンバー数と稼働メンバー数
-- mdadm RAID1の状態が `[UU]` であること
-- `/dev/sda` と `/dev/sdb` が物理デバイスとして存在すること
-- 各HDDのSMART総合判定が失敗していないこと
+- RAID1状態が `[UU]` であること
+- `/dev/sda` と `/dev/sdb` が存在すること
+- 各HDDのSMART総合判定
 
-異常が新しく発生した時にntfyへ通知し、同じ異常は連投しない。未解決の場合は24時間後に再通知し、正常へ戻った時は復旧通知を送る。ntfyはログインとAPIキーを必要としないが、ランダムトピックURL自体を秘密として扱う。
+異常発生時、未解決24時間後、復旧時にntfyへ通知する。同じ異常は連投しない。ntfyはログインやAPIキーを必要としないが、ランダムなトピックURL自体を秘密として扱う。NAS全体の電源断はNAS自身から通知できない。
 
-## systemdと自動起動
-
-主要な永続サービス:
+## 自動起動
 
 - `nginx.service`
 - `nas-admin.service`
@@ -213,26 +139,11 @@ sequenceDiagram
 - `tailscaled.service`
 - `smartmontools.service`
 
-ImmichはDocker Composeのrestart policyで復帰する。管理APIは `127.0.0.1:8787` のみにbindし、外部からはnginx経由でアクセスする。
+ImmichはDocker Composeのrestart policyで復帰する。管理APIは `127.0.0.1:8787` のみにbindし、nginx経由で利用する。
 
-## ソースと実機配置
+## 未実装・制約
 
-| リポジトリ | 実機 |
-|---|---|
-| `nas-admin-service/` | `/opt/nas-admin-service/` |
-| `nas-admin-ui/` の静的ビルド | `/opt/nas-admin-ui-static/` |
-| `nas-admin-service/deploy/nas-admin.nginx` | `/etc/nginx/sites-available/nas-admin` |
-| Samba設定断片 | `/etc/samba/nas-admin.conf` |
-| Avahiサービス定義 | `/etc/avahi/services/nas-admin.service` |
-| systemd unit | `/etc/systemd/system/nas-*` |
-
-実装状況と引き渡し操作は `IMPLEMENTATION_STATUS.md`、設計上の判断と限界は `NAS_PRODUCT_DESIGN.md`、接続・導入履歴は `NAS_CONNECTION.md` を参照。
-
-## 未実装・将来拡張
-
-- RAIDとは別媒体への自動バックアップと復元テスト
-- Btrfs scrubと週次SMARTセルフテスト
-- NAS全体の停止を外部から検出するハートビート
-- 更新前バックアップと自動ロールバック
-- 署名済みWindowsヘルパーによる接続操作の簡略化
-- 認証付きセルフホストntfyへの移行
+- RAIDはバックアップではない。別媒体へのバックアップと復元テストは未実装
+- Btrfs scrub、週次SMARTセルフテスト、外部ハートビートは未実装
+- 更新前バックアップ、自動更新、ロールバックは未実装
+- 引き渡し後の販売者による遠隔サポートは提供しない

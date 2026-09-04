@@ -1,2 +1,0 @@
-#!/bin/sh
-exec /usr/bin/sudo /opt/nas-admin-service/nas_support.py "$@"

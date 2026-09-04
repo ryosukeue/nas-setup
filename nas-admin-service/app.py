@@ -14,7 +14,7 @@ import sqlite3
 import subprocess
 import urllib.error
 import urllib.request
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 
 from flask import Flask, Response, jsonify, request, send_file, session
@@ -57,20 +57,7 @@ def init_db() -> None:
                 detail TEXT NOT NULL DEFAULT ''
             )"""
         )
-        connection.execute(
-            """CREATE TABLE IF NOT EXISTS support_requests (
-                id TEXT PRIMARY KEY,
-                created_at TEXT NOT NULL,
-                requested_by TEXT NOT NULL,
-                reason TEXT NOT NULL,
-                status TEXT NOT NULL,
-                approved_at TEXT,
-                expires_at TEXT
-            )"""
-        )
-        connection.execute(
-            "CREATE INDEX IF NOT EXISTS idx_support_requests_status ON support_requests(status, created_at DESC)"
-        )
+        connection.execute("DROP TABLE IF EXISTS support_requests")
         connection.execute("CREATE INDEX IF NOT EXISTS idx_audit_created_at ON audit(created_at DESC)")
         connection.execute("PRAGMA optimize")
 
@@ -434,37 +421,6 @@ def smb_password():
     return jsonify({"ok": True})
 
 
-@app.get("/api/support/requests")
-@owner_required
-def support_requests():
-    with db() as connection:
-        rows = connection.execute("SELECT * FROM support_requests ORDER BY created_at DESC LIMIT 20").fetchall()
-    return jsonify([dict(row) for row in rows])
-
-
-@app.post("/api/support/requests/<request_id>/<decision>")
-@owner_required
-def support_decision(request_id: str, decision: str):
-    if decision not in {"approve", "deny"}:
-        return jsonify({"error": "不正な操作です"}), 400
-    now = utcnow()
-    with db() as connection:
-        row = connection.execute("SELECT * FROM support_requests WHERE id = ?", (request_id,)).fetchone()
-        if not row or row["status"] != "pending":
-            return jsonify({"error": "申請が見つからないか処理済みです"}), 404
-        if decision == "approve":
-            expires = now + timedelta(hours=1)
-            connection.execute(
-                "UPDATE support_requests SET status='approved', approved_at=?, expires_at=? WHERE id=?",
-                (iso(now), iso(expires), request_id),
-            )
-        else:
-            connection.execute("UPDATE support_requests SET status='denied' WHERE id=?", (request_id,))
-    audit("owner", f"support.{decision}", request_id)
-    send_ntfy("保守申請を1時間許可しました。" if decision == "approve" else "保守申請を拒否しました。")
-    return jsonify({"ok": True})
-
-
 @app.get("/api/audit")
 @owner_required
 def audit_log():
@@ -567,7 +523,7 @@ def handoff_complete():
     run(["passwd", "--lock", "ryo"], check=False)
     run(["usermod", "--shell", "/usr/sbin/nologin", "ryo"], check=False)
     set_setting("handoff_complete", True)
-    audit("owner", "handoff.complete", "builder login disabled; support broker remains")
+    audit("owner", "handoff.complete", "builder login disabled; no remote support account")
     run(
         [
             "systemd-run", "--unit", "nas-end-builder-session", "--on-active=10s",
