@@ -47,6 +47,13 @@
 - リセット後、NAS管理画面とImmichの双方が未登録、Immich全コンテナが正常、RAIDが2台稼働 `[UU]` であることを確認した
 - 一時退避した試用データは確認後に削除し、利用者の試用メール・パスワード・通知トピックはGitHubへ保存していない
 
+## 2026-09-04 RAID再同期完了確認
+
+- `/dev/md0` は2台中2台が稼働するRAID1 `[UU]`
+- `sync_action` は `idle`、`array_state` は `clean`、degradedデバイス数は0
+- `/dev/sda` と `/dev/sdb` は両方存在し、管理APIによるSMART総合判定は両方とも正常
+- 利用可能容量は約1.98TBで、Immichと初期設定画面も稼働中
+
 ## 引き渡し時に所有者が行う操作
 
 1. NASをLANへ接続し、PCまたはスマホで `http://nas.local` を開く
