@@ -79,4 +79,16 @@
 - Tailscaleは所有者が外出先からImmichを見る用途だけに使用する
 - 引き渡し完了後は構築用 `ryo` も停止し、販売者のSSH経路を残さない
 
+## 2026-09-04 保守機能削除版の実機反映
+
+- GitHub `main` の `8682233` を実機へ反映した
+- Linux `support` ユーザーとホームディレクトリを削除した
+- 保守用SSH鍵、コマンド、sudo設定、仲介プログラムを実機から削除した
+- 保守申請APIがHTTP 404となり、管理状態DBから保守申請テーブルが消えたことを確認した
+- 管理画面と `/healthz`、Immich APIはHTTP 200で、Immichは未登録状態を維持している
+- nginx、管理API、Samba、WS-Discovery、Avahi、Docker、Tailscale、ディスク監視timerがすべてactive
+- `/dev/md0` は2台稼働の `[UU]`、`clean`、同期処理 `idle`。両HDDの在席とSMART総合正常を管理APIで確認した
+- 現在のTailscale Serve設定は空で、所有者の初期設定前に外部公開していない
+- 差し替え前の管理API、画面、状態DBは実機内に退避し、写真領域とImmichデータ領域は変更していない
+
 RAID1はディスク1台の故障に耐える冗長化であり、バックアップではありません。大切な写真には別のUSBディスクまたは別拠点へのバックアップを追加してください。
